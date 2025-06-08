@@ -25,8 +25,12 @@ def test_question_parsing_and_validation(tmp_path):
 
     assert q.correct_indices() == [1, 3]
     assert q.answers_ok("1 3")
+    assert q.answers_ok("13")
+    assert q.answers_ok(" 1   3 ")
     assert not q.answers_ok("1")
     assert not q.answers_ok("2 3")
+    assert not q.answers_ok("23")
+    assert not q.answers_ok("3")
 
 
 def test_collect_quiz_dirs_sorting(tmp_path):
