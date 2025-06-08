@@ -1,8 +1,8 @@
 import json
-import subprocess
 import os
-from pathlib import Path
+import subprocess
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Union
 
 
@@ -81,12 +81,12 @@ class BaseInterface(ABC):
         self.quiz = quiz
 
     @abstractmethod
-    def ask(self, question: Question) -> str:
+    def ask(self, question: Question, idx: int, total: int) -> str:
         """Wyświetla pytanie i zwraca odpowiedź użytkownika."""
         raise NotImplementedError
 
     @abstractmethod
-    def notify_result(self, question: Question, correct: bool) -> None:
+    def notify_result(self, question: Question, correct: bool, idx: int, total: int) -> None:
         """Informuje o poprawności odpowiedzi."""
         raise NotImplementedError
 
@@ -104,7 +104,7 @@ class BaseInterface(ABC):
 class CliInterface(BaseInterface):
     """Prosta implementacja linii komend."""
 
-    WIDTH = 55  # szerokość ramki z '#'
+    WIDTH = 80  # szerokość ramki z '#'
 
     @staticmethod
     def _clear() -> None:
@@ -114,47 +114,68 @@ class CliInterface(BaseInterface):
     def _line(cls, text: str = "") -> str:
         return f"# {text.ljust(cls.WIDTH - 4)} #"
 
-    def ask(self, question: Question) -> str:
+    def _global_stats_line(self, idx: int) -> str:
+        correct_cnt = self.quiz.total_unique_correct()
+        incorrect_cnt = self.quiz.total_unique_incorrect()
+        return self._line(f"✅  {correct_cnt} - ❌  {incorrect_cnt}")
+
+    def ask(self, question: Question, idx: int, total: int) -> str:
         self._clear()
         question.display_image()
 
         border = "#" * self.WIDTH
-        header = self._line(f"Question: {question.file.name}")
+        header = self._line(f"Question {idx} of {total}: {question.file.name}")
+        stats_line = self._global_stats_line(idx)
 
         print(border)
         print(header)
+        print(stats_line)
         print(border)
         print()
         print(f"Q: {question.question}\n")
-
-        for idx, ans in enumerate(question.available_answers, start=1):
-            print(f"{idx}. {ans}")
-
+        for idx_ans, ans in enumerate(question.available_answers, start=1):
+            print(f"{idx_ans}. {ans}")
         print()
+
         print(border)
-        prompt_line = self._line("Enter your answer: ")
+        prompt_text = "Enter your answer: "
+        prompt_line = self._line(prompt_text)
         print(prompt_line)
         print(border)
 
-        return input().strip()
+        print("\033[2A", end="")
+        cursor_col = 2 + len(prompt_text)
+        print(f"\033[{cursor_col}C", end="", flush=True)
 
-    def notify_result(self, question: Question, correct: bool) -> None:
+        answer = input().strip()
+        print()
+        return answer
+
+    def notify_result(self, question: Question, correct: bool, idx: int, total: int) -> None:
         self._clear()
 
         border = "#" * self.WIDTH
-        symbol = "✅" if correct else "❌"
-        correct_ids = ", ".join(map(str, question.correct_indices()))
-        header = self._line(f"{symbol} Correct answer: {correct_ids}")
+        symbol = "✅  " if correct else "❌  "
+        header = self._line(f"Question {idx} of {total}: {question.file.name} {symbol} ")
+        stats_line = self._global_stats_line(idx)
 
         print(border)
         print(header)
+        print(stats_line)
         print(border)
         print()
 
-        for idx, ans in enumerate(question.available_answers, start=1):
-            mark = "✅" if idx in question.correct_indices() else "❌"
-            print(f"{idx}. {ans}   {mark}")
+        print(f"Q: {question.question}\n")
+        for idx_ans, ans in enumerate(question.available_answers, start=1):
+            mark = "✅  " if idx_ans in question.correct_indices() else "❌  "
+            print(f"{mark}{idx_ans}. {ans}")
+        print()
 
+        print(border)
+        result_text = "Correct answer" if correct else "Wrong answer"
+        prompt_line = self._line(f"{result_text}: {', '.join(map(str, question.correct_indices()))}")
+        print(prompt_line)
+        print(border)
         print()
 
     def pause(self) -> None:
@@ -162,10 +183,20 @@ class CliInterface(BaseInterface):
         self._clear()
 
     def show_summary(self) -> None:
-        print(
-            f"\nResult: {len(self.quiz.correct_questions)}/{len(self.quiz.questions)} "
-            f"({self.quiz.ratio():.0%} correct)"
-        )
+        border = "#" * self.WIDTH
+        total_q = len(self.quiz.questions)
+        correct_q = self.quiz.total_unique_correct()
+        incorrect_q = self.quiz.total_unique_incorrect()
+
+        self._clear()
+        print(border)
+        print(self._line("QUIZ SUMMARY"))
+        print(border)
+        print(self._line(f"✅  Correct:   {correct_q}/{total_q}"))
+        print(self._line(f"❌  Incorrect: {incorrect_q}/{total_q}"))
+        print(self._line(f"Success rate: {self.quiz.ratio():.0%}"))
+        print(border)
+
 
 class Quiz:
     def __init__(
@@ -194,9 +225,8 @@ class Quiz:
             with open(self.progress_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
-            return  # zostaw puste statystyki
+            return
 
-        # format z licznikami
         if isinstance(data.get("stats"), dict):
             self.stats = {
                 k: {"correct": v.get("correct", 0), "incorrect": v.get("incorrect", 0)}
@@ -204,7 +234,6 @@ class Quiz:
             }
             return
 
-        # stary format list -> konwersja
         self.correct_questions = data.get("correct", [])
         self.incorrect_questions = data.get("incorrect", [])
         for name in self.correct_questions:
@@ -217,8 +246,8 @@ class Quiz:
 
         with open(self.progress_path, "w", encoding="utf-8") as f:
             data = {
-                "stats": self.stats,  # nowy format
-                "correct": self.correct_questions,  # zachowujemy na zgodność z wcześniejszym kodem
+                "stats": self.stats,
+                "correct": self.correct_questions,
                 "incorrect": self.incorrect_questions,
             }
             json.dump(data, f, indent=2)
@@ -245,14 +274,12 @@ class Quiz:
         return cls(questions, progress_path, should_update_progress, interface, skip_solved=skip_solved)
 
     def _should_skip(self, question: Question) -> bool:
-        """Decyduje czy pytanie należy pominąć (już rozwiązane)."""
         return (
-            self.skip_solved
-            and self.stats.get(question.file.name, {}).get("correct", 0) > 0
+                self.skip_solved
+                and self.stats.get(question.file.name, {}).get("correct", 0) > 0
         )
 
     def _record_result(self, name: str, correct: bool) -> None:
-        """Aktualizuje statystyki oraz listy correct/incorrect."""
         self.stats.setdefault(name, {"correct": 0, "incorrect": 0})
         key_add, key_remove = ("correct", "incorrect") if correct else ("incorrect", "correct")
         self.stats[name][key_add] += 1
@@ -265,29 +292,37 @@ class Quiz:
         rem_list[:] = [q for q in rem_list if q != name]
 
     def _maybe_save_progress(self) -> None:
-        """Zapisuje postęp, jeżeli opcja jest włączona."""
         if self.should_update_progress:
             self._save_progress()
 
-    def _ask_question(self, question: Question):
-        user_answers = self.interface.ask(question)
-        correct = question.answers_ok(user_answers)
+    def _get_question_stats(self, q: Question) -> dict[str, int]:
+        return self.stats.get(q.file.name, {"correct": 0, "incorrect": 0})
 
+    def _process_single(self, question: Question, idx: int, total: int):
+        user_ans = self.interface.ask(question, idx, total)
+        correct = question.answers_ok(user_ans)
         self._record_result(question.file.name, correct)
-        self.interface.notify_result(question, correct)
+        self.interface.notify_result(question, correct, idx, total)
         self._maybe_save_progress()
         self.interface.pause()
 
     def run(self):
-        for question in self.questions:
-            if self._should_skip(question):
+        total = len(self.questions)
+        for idx, q in enumerate(self.questions, start=1):
+            if self._should_skip(q):
                 continue
-            self._ask_question(question)
+            self._process_single(q, idx, total)
         self.interface.show_summary()
+
+    def total_unique_correct(self) -> int:
+        return sum(1 for v in self.stats.values() if v["correct"] > 0)
+
+    def total_unique_incorrect(self) -> int:
+        return sum(1 for v in self.stats.values() if v["correct"] == 0 and v["incorrect"] > 0)
 
     def ratio(self) -> float:
         total = len(self.questions)
-        return len(self.correct_questions) / total if total else 0.0
+        return self.total_unique_correct() / total if total else 0.0
 
 
 def main():
