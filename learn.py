@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Union
 
 import sys
+import textwrap
 
 if os.name == "nt":
     import msvcrt
@@ -130,6 +131,17 @@ class CliInterface(BaseInterface):
     def _line(cls, text: str = "") -> str:
         return f" {text}"
 
+    def _print_wrapped(self, prefix: str, text: str) -> None:
+        """Print text wrapped to WIDTH, keeping the prefix on the first line."""
+        lines = textwrap.wrap(text, width=self.WIDTH - len(prefix))
+        if not lines:
+            print(prefix.rstrip())
+            return
+        print(prefix + lines[0])
+        indent = " " * len(prefix)
+        for l in lines[1:]:
+            print(indent + l)
+
     def _global_stats_line(self) -> str:
         correct_cnt = self.quiz.total_unique_correct()
         incorrect_cnt = self.quiz.total_unique_incorrect()
@@ -148,9 +160,10 @@ class CliInterface(BaseInterface):
         print(stats_line)
         print(border)
         print()
-        print(f"Q: {question.question}\n")
+        self._print_wrapped("Q: ", question.question)
+        print()
         for idx_ans, ans in enumerate(question.available_answers, start=1):
-            print(f"{idx_ans}. {ans}")
+            self._print_wrapped(f"{idx_ans}. ", ans)
         print()
 
         print(border)
@@ -181,10 +194,11 @@ class CliInterface(BaseInterface):
         print(border)
         print()
 
-        print(f"Q: {question.question}\n")
+        self._print_wrapped("Q: ", question.question)
+        print()
         for idx_ans, ans in enumerate(question.available_answers, start=1):
             mark = "✅  " if idx_ans in question.correct_indices() else "❌  "
-            print(f"{mark}{idx_ans}. {ans}")
+            self._print_wrapped(f"{mark}{idx_ans}. ", ans)
         print()
 
         print(border)
