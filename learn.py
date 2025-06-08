@@ -53,7 +53,7 @@ class Question:
         if not file.exists():
             raise FileNotFoundError(f"File {file} does not exist")
 
-        with open(file, "r") as f:
+        with open(file, "r", encoding="utf-8", errors="replace") as f:  # protects against UnicodeDecodeError
             correct_answers = f.readline().strip("X\n")
             question = f.readline().rstrip(" ?\n")
             available_answers = [x.strip() for x in f.readlines()]
@@ -240,7 +240,7 @@ class Quiz:
         try:
             with open(self.progress_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
             return
 
         if isinstance(data.get("stats"), dict):
