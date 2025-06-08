@@ -1,9 +1,17 @@
 import json
 import os
 import subprocess
+import platform
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union
+
+import sys
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import tty, termios
 
 
 class Question:
@@ -66,8 +74,16 @@ class Question:
 
     def display_image(self):
         path = self.image_path()
-        if path:
-            subprocess.Popen(['open', path.absolute()])
+        if not path:
+            return
+
+        system = platform.system()
+        if system == "Darwin":
+            subprocess.Popen(["open", str(path.absolute())])
+        elif system == "Windows":
+            os.startfile(str(path))
+        else:
+            subprocess.Popen(["xdg-open", str(path.absolute())])
 
     @staticmethod
     def should_process(file: Path) -> bool:
@@ -112,12 +128,12 @@ class CliInterface(BaseInterface):
 
     @classmethod
     def _line(cls, text: str = "") -> str:
-        return f"# {text.ljust(cls.WIDTH - 4)} #"
+        return f" {text}"
 
-    def _global_stats_line(self, idx: int) -> str:
+    def _global_stats_line(self) -> str:
         correct_cnt = self.quiz.total_unique_correct()
         incorrect_cnt = self.quiz.total_unique_incorrect()
-        return self._line(f"✅  {correct_cnt} - ❌  {incorrect_cnt}")
+        return self._line(f"✅ {correct_cnt} - ❌ {incorrect_cnt}")
 
     def ask(self, question: Question, idx: int, total: int) -> str:
         self._clear()
@@ -125,7 +141,7 @@ class CliInterface(BaseInterface):
 
         border = "#" * self.WIDTH
         header = self._line(f"Question {idx} of {total}: {question.file.name}")
-        stats_line = self._global_stats_line(idx)
+        stats_line = self._global_stats_line()
 
         print(border)
         print(header)
@@ -157,7 +173,7 @@ class CliInterface(BaseInterface):
         border = "#" * self.WIDTH
         symbol = "✅  " if correct else "❌  "
         header = self._line(f"Question {idx} of {total}: {question.file.name} {symbol} ")
-        stats_line = self._global_stats_line(idx)
+        stats_line = self._global_stats_line()
 
         print(border)
         print(header)
@@ -325,13 +341,108 @@ class Quiz:
         return self.total_unique_correct() / total if total else 0.0
 
 
+def _arrow_select(options: list[str]) -> int:
+    """
+    Zwraca indeks wskazanej opcji.
+    – strzałki ↑/↓ przesuwają zaznaczenie
+    – Enter potwierdza wybór
+    Jeżeli stdin nie jest TTY, następuje powrót do wyboru „wpisz numer”.
+    """
+    if not sys.stdin.isatty():
+        # fallback – użytkownik wpisuje numer
+        for i, text in enumerate(options, 1):
+            print(f"{i}. {text}")
+        while True:
+            ch = input("Wybierz numer: ")
+            if ch.isdigit() and 1 <= int(ch) <= len(options):
+                return int(ch) - 1
+            print("Niepoprawny wybór – spróbuj ponownie.")
+
+    sel = 0
+
+    def _clear():
+        os.system("cls" if os.name == "nt" else "clear")
+
+    def _render() -> None:
+        _clear()
+        for i, text in enumerate(options):
+            prefix = "👉 " if i == sel else "   "
+            print(f"{prefix}{text}")
+
+    if os.name == "nt":                       # Windows – msvcrt
+        while True:
+            _render()
+            key = msvcrt.getch()
+            if key == b'\r':                  # Enter
+                return sel
+            if key == b'\xe0':                # kod rozszerzony
+                direction = msvcrt.getch()
+                if direction == b'H':         # strzałka ↑
+                    sel = (sel - 1) % len(options)
+                elif direction == b'P':       # strzałka ↓
+                    sel = (sel + 1) % len(options)
+    else:                                     # Unix-like – termios/tty
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            while True:
+                _render()
+                ch = sys.stdin.read(1)
+                if ch == '\n' or ch == '\r':  # Enter
+                    return sel
+                if ch == '\x1b':              # sekwencja ESC
+                    seq = sys.stdin.read(2)
+                    if seq == '[A':           # ↑
+                        sel = (sel - 1) % len(options)
+                    elif seq == '[B':         # ↓
+                        sel = (sel + 1) % len(options)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+def _collect_quiz_dirs(base: Path) -> list[Path]:
+    """Zwraca katalogi zawierające pliki .txt (pytania) lub progress.json.
+       Te z plikiem progress.json są sortowane wyżej."""
+    dirs: list[Path] = []
+    for p in base.rglob("*"):
+        if not p.is_dir():
+            continue
+        has_txt = any(Question.should_process(f) for f in p.iterdir())
+        has_progress = (p / "progress.json").exists()
+        if has_txt or has_progress:
+            dirs.append(p)
+    dirs.sort(key=lambda d: (0 if (d / "progress.json").exists() else 1, str(d).lower()))
+    return dirs
+
+
+def _select_directory(dirs: list[Path], base: Path) -> Path:
+    labels = [
+        f"{'[CONTINUE LEARNING] ' if (d / 'progress.json').exists() else ''}{d.relative_to(base)}"
+        for d in dirs
+    ]
+    selected_index = _arrow_select(labels)
+    return dirs[selected_index]
+
+
 def main():
-    directory = Path.cwd() / 'zestawy' / 'sieci3'
+    base_directory = Path.cwd() / "zestawy"
+
+    if not base_directory.exists():
+        print(f"Brak katalogu bazowego: {base_directory}")
+        return
+
+    quiz_dirs = _collect_quiz_dirs(base_directory)
+
+    if not quiz_dirs:
+        print("Nie znaleziono żadnych zestawów pytań.")
+        return
+
+    directory = _select_directory(quiz_dirs, base_directory)
 
     try:
         quiz = Quiz.from_directory(directory)
     except FileNotFoundError:
-        print('Directory does not exist')
+        print("Wybrany katalog nie istnieje")
         return
 
     quiz.run()
