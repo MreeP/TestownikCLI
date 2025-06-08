@@ -1,5 +1,5 @@
 from quiz import Quiz
-from .conftest import DummyInterface  # noqa: WPS433
+from tests.dummy_classes.dummy_interface import DummyInterface
 
 
 def test_quiz_end_to_end(workdir):

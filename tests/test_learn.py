@@ -7,8 +7,8 @@ from quiz import (
     Question,
     Quiz,
     _collect_quiz_dirs,
-    BaseInterface,
 )
+from tests.dummy_classes.dummy_interface import DummyInterface
 
 
 def _make_qfile(dir_: Path, name: str, mask: str = "10", q="What?", answers=None):
@@ -17,26 +17,6 @@ def _make_qfile(dir_: Path, name: str, mask: str = "10", q="What?", answers=None
     file = dir_ / f"{name}.txt"
     file.write_text(content, encoding="utf-8")
     return file
-
-
-class DummyInterface(BaseInterface):
-    """Replaces CLI – feeds predefined answers and does nothing else."""
-
-    def __init__(self, quiz, answers):
-        super().__init__(quiz)
-        self._it = iter(answers)
-
-    def ask(self, question, idx, total):  # noqa: D401
-        return next(self._it)
-
-    def notify_result(self, question, correct, idx, total):
-        pass
-
-    def pause(self):
-        pass
-
-    def show_summary(self):
-        pass
 
 
 def test_question_parsing_and_validation(tmp_path):
