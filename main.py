@@ -29,4 +29,16 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        import sys
+        import shutil
+
+        # Move cursor to the bottom of the terminal, then print "Bye!" on a new line.
+        rows, columns = shutil.get_terminal_size((80, 20))
+        # Move cursor to bottom row, column 1
+        print(f"\033[{rows};1H", end="")
+        # Clear the line to avoid leftover prompt
+        print("\033[2K", end="")
+        print("Bye!")
