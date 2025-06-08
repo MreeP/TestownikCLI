@@ -27,14 +27,15 @@ class Question:
         return [i + 1 for i, c in enumerate(self.correct_answers) if c == "1"]
 
     def answers_ok(self, user_input: str) -> bool:
+        return Question.parse_user_input(user_input) == set(self.correct_indices())
+
+    @staticmethod
+    def parse_user_input(user_input: str) -> set[int]:
         """
+        Parses user input and returns a list of integers representing the selected answers.
         Accepts answers like '2 4 5', '245', or any mix of whitespace and digits.
-        Each single digit is treated as a separate answer.
         """
-        # Remove all whitespace, then treat each digit as a separate answer
-        digits = [int(ch) for ch in user_input if ch.isdigit()]
-        user_set = set(digits)
-        return user_set == set(self.correct_indices())
+        return set([int(ch) for ch in user_input if ch.isdigit()])
 
     def answers_as_str(self) -> str:
         return ", ".join(map(str, self.correct_indices()))

@@ -22,7 +22,7 @@ class BaseInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def notify_result(self, question: Question, correct: bool, idx: int, total: int) -> None:
+    def notify_result(self, question: Question, correct: bool, idx: int, total: int, user_answer: str) -> None:
         """Informuje o poprawności odpowiedzi."""
         raise NotImplementedError
 
@@ -99,7 +99,7 @@ class CliInterface(BaseInterface):
         print()
         return answer
 
-    def notify_result(self, question: Question, correct: bool, idx: int, total: int) -> None:
+    def notify_result(self, question: Question, correct: bool, idx: int, total: int, user_answer: str) -> None:
         self._clear()
 
         border = "#" * self.WIDTH
@@ -121,8 +121,7 @@ class CliInterface(BaseInterface):
         print()
 
         print(border)
-        result_text = "Correct answer" if correct else "Wrong answer"
-        prompt_line = self._line(f"{result_text}: {', '.join(map(str, question.correct_indices()))}")
+        prompt_line = self._line(f"Your answer: {', '.join(map(str, Question.parse_user_input(user_answer)))} {correct and '✅' or '❌'}")
         print(prompt_line)
         print(border)
         print()

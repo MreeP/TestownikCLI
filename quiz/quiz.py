@@ -109,7 +109,7 @@ class Quiz:
         user_ans = self.interface.ask(question, idx, total)
         correct = question.answers_ok(user_ans)
         self._record_result(question.file.name, correct)
-        self.interface.notify_result(question, correct, idx, total)
+        self.interface.notify_result(question, correct, idx, total, user_ans)
         self._maybe_save_progress()
         self.interface.pause()
 

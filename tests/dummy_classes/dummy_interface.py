@@ -11,7 +11,7 @@ class DummyInterface(BaseInterface):
     def ask(self, question, idx, total):  # noqa: D401
         return next(self._it)
 
-    def notify_result(self, question, correct, idx, total):
+    def notify_result(self, question, correct, idx, total, user_answer):
         pass
 
     def pause(self):
