@@ -50,10 +50,17 @@ class Question:
         if not file.exists():
             raise FileNotFoundError(f"File {file} does not exist")
 
+        def is_img_tag(line: str) -> bool:
+            line = line.strip()
+            return line.lower().startswith("[img]") and line.lower().endswith("[/img]")
+
         with open(file, "r", encoding="utf-8", errors="replace") as f:  # protects against UnicodeDecodeError
             correct_answers = f.readline().strip("X\n")
             question = f.readline().rstrip(" ?\n")
-            available_answers = [x.strip() for x in f.readlines()]
+            available_answers = [
+                x.strip() for x in f.readlines()
+                if x.strip() and not is_img_tag(x)
+            ]
 
         return cls(file, question, correct_answers, available_answers)
 
