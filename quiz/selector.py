@@ -9,6 +9,7 @@ if os.name == "nt":
 else:
     import tty, termios
 
+
 def _arrow_select(options: list[str]) -> int:
     """
     Zwraca indeks wskazanej opcji.
@@ -37,19 +38,19 @@ def _arrow_select(options: list[str]) -> int:
             prefix = "👉 " if i == sel else "   "
             print(f"{prefix}{text}")
 
-    if os.name == "nt":                       # Windows – msvcrt
+    if os.name == "nt":  # Windows – msvcrt
         while True:
             _render()
             key = msvcrt.getch()
-            if key == b'\r':                  # Enter
+            if key == b'\r':  # Enter
                 return sel
-            if key == b'\xe0':                # kod rozszerzony
+            if key == b'\xe0':  # kod rozszerzony
                 direction = msvcrt.getch()
-                if direction == b'H':         # strzałka ↑
+                if direction == b'H':  # strzałka ↑
                     sel = (sel - 1) % len(options)
-                elif direction == b'P':       # strzałka ↓
+                elif direction == b'P':  # strzałka ↓
                     sel = (sel + 1) % len(options)
-    else:                                     # Unix-like – termios/tty
+    else:  # Unix-like – termios/tty
         fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
@@ -59,14 +60,15 @@ def _arrow_select(options: list[str]) -> int:
                 ch = sys.stdin.read(1)
                 if ch == '\n' or ch == '\r':  # Enter
                     return sel
-                if ch == '\x1b':              # sekwencja ESC
+                if ch == '\x1b':  # sekwencja ESC
                     seq = sys.stdin.read(2)
-                    if seq == '[A':           # ↑
+                    if seq == '[A':  # ↑
                         sel = (sel - 1) % len(options)
-                    elif seq == '[B':         # ↓
+                    elif seq == '[B':  # ↓
                         sel = (sel + 1) % len(options)
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
 
 def _collect_quiz_dirs(base: Path) -> list[Path]:
     """Zwraca katalogi zawierające pliki .txt (pytania) lub progress.json.

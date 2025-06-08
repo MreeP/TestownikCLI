@@ -3,11 +3,12 @@ from __future__ import annotations
 import os
 import textwrap
 from abc import ABC, abstractmethod
-
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .quiz import Quiz
 from .question import Question
+
 
 class BaseInterface(ABC):
     """Abstrakcyjna warstwa prezentacji (CLI, GUI, itp.)."""

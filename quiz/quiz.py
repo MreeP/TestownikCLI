@@ -2,8 +2,9 @@ import json
 from pathlib import Path
 from typing import Union
 
-from .question import Question
 from .interface import BaseInterface, CliInterface
+from .question import Question
+
 
 class Quiz:
     def __init__(
@@ -72,11 +73,10 @@ class Quiz:
         if not directory.exists():
             raise FileNotFoundError(directory)
 
-        questions = [
-            Question.from_file(file)
-            for file in sorted(directory.iterdir())
-            if Question.should_process(file)
-        ]
+        question_paths = sorted(
+            p for p in directory.rglob("*") if Question.should_process(p)
+        )
+        questions = [Question.from_file(p) for p in question_paths]
         progress_path = progress_path or directory / "progress.json"
         return cls(questions, progress_path, should_update_progress, interface, skip_solved=skip_solved)
 

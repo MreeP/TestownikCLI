@@ -1,0 +1,4 @@
+10
+Dummy question A?
+Yes
+No
